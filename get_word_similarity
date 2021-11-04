@@ -1,0 +1,162 @@
+import numpy as np
+import re
+import math
+import time
+
+# re_symbol = r'/^[~!@#$%^&*()_+{}:"' + r"|<>?`\-=[\];'\,./]+$/"
+# print(re_symbol)
+
+# 求向量长度
+def get_vector_length(vector):
+    return math.sqrt(np.sum(vector ** 2))
+
+# 清理数据
+def data_washing():
+    data_path = r'./199801_clear.txt'
+    data_all = []
+    with open(data_path, "r") as f:
+        for line in f.readlines():
+            data = line.strip()
+            # data = re.split('[\u4e00-\u9fa5]+', data) # 去除所有非中文字符
+
+            # 去除多余字符
+            data = data[: 18] + re.sub(re.compile(r'[a-zA-Z\-/,。，—）（ ；？》《：”|";、…]'), ' ', data[18:])
+            data = data[: 18] + re.sub(re.compile("[！'“』『,]"), ' ', data[18:])
+            # data += '\n'
+            # print(re.split('[^\u4e00-\u9fa5]+', data))
+
+            data = data.split()
+            # 去除空列表的情况
+            if len(data):
+                data_all.append(data)
+    return data_all
+    # new_data_file = 'data_washed_3.txt'
+    # with open(new_data_file, 'w') as f:
+    #     for data in data_all:
+    #         f.write(data)
+
+# 得到完整的词向量空间
+def get_word_space(data):
+    # 得到所有单词的向量空间
+    word_space = dict()
+    idx = 0
+    for line in data:
+        for word in line:
+            if word not in word_space:
+                word_space[word] = idx
+                idx += 1
+    print(len(word_space))
+    # print(word_space)
+    return word_space
+
+# 将每一行的单词映射到向量空间中
+def word_to_vector(data, word_space):
+    len_word_space = len(word_space)
+    len_list = len(data)
+    vectors = np.zeros(len_word_space * len_list)
+    vectors = vectors.reshape((len_list, len_word_space))
+    # print(vectors.shape)
+    # print(vectors)
+    idx = 0
+    for line in data:
+        for word in line:
+            vectors[idx, word_space[word]] += 1
+        idx += 1
+    return vectors
+
+# 将每一行的单词映射到向量空间中，使用list存储
+def word_to_vector_list(data, word_space):
+    len_word_space = len(word_space)
+    vectors = []
+
+    for line in data:
+        vector = [0] * len_word_space
+        for word in line:
+            vector[word_space[word]] += 1
+        # print(vector)
+        vectors.append(vector)
+    return vectors
+
+# 计算编辑距离，此处以一个词组为基本单位
+def get_edit_distance(words_a, words_b):
+    n, m = len(words_a), len(words_b)
+    f = np.zeros((n + 1, m + 1))
+    for i in range(1, n + 1):
+        f[i, 0] = i
+    for i in range(1, m + 1):
+        f[0, i] = i
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            f[i, j] = min(f[i - 1, j], f[i, j - 1]) + 1
+            if(words_a[i - 1] == words_b[j - 1]):
+                f[i, j] = min(f[i, j], f[i - 1, j - 1])
+            else:
+                f[i, j] = min(f[i, j], f[i - 1, j - 1] + 1)
+    return f[n, m]
+
+# 计算余弦相似度
+def get_cos_similarity(words_a, words_b):
+    return (words_a @ words_b) / (get_vector_length(words_a) * get_vector_length(words_b))
+
+# 计算Dice系数
+def get_dice_similarity(words_a, words_b):
+    return 2 * (words_a @ words_b) / (np.sum(words_a ** 2) + np.sum(words_b ** 2))
+
+# 计算Jaccard相似系数
+def get_jaccard_similarity(words_a, words_b):
+    return (words_a @ words_b) / (np.sum(words_a ** 2) + np.sum(words_b ** 2) - words_a @ words_b)
+
+# 计算欧氏距离
+def get_euclidean_distance(words_a, words_b):
+    return get_vector_length(words_a - words_b)
+
+# 计算词频,且做归一化，最终返回词频数
+def get_tf_all_words(word_vectors):
+    tf_vectors = word_vectors.copy()
+    for i in range(tf_vectors.shape[0]):
+        # print(i)
+        tf_vectors[i, :] = tf_vectors[i, :] / np.sum(tf_vectors[i, :])
+    # print(tf_vectors)
+    return tf_vectors
+
+# 计算逆向文件频率
+def get_idf_all_words(word_vectors):
+    (m, n) = word_vectors.shape
+    idf_vectors = np.zeros(n)
+    for i in range(n):
+        # print(i)
+        idf_vectors[i] = m / (len(word_vectors[word_vectors[:, i] > 0]) + 1)
+    idf_vectors = np.log(idf_vectors)
+    return idf_vectors
+
+
+def get_tf_idf(word_vectors):
+    return get_tf_all_words(word_vectors) * get_idf_all_words(word_vectors)
+
+
+if __name__ == '__main__':
+    start_time = time.time()
+
+    data = data_washing()
+
+    # print(data)
+    word_space = get_word_space(data)
+    # print(word_space)
+    word_vectors = word_to_vector(data, word_space)
+    print(word_vectors)
+    print(word_vectors.shape)
+
+    print('The edit distance is:      ', get_edit_distance(data[0], data[1]))
+    print('The cosine similarity is:  ', get_cos_similarity(word_vectors[0], word_vectors[1]))
+    print('The Dice similarity is:    ', get_dice_similarity(word_vectors[0], word_vectors[1]))
+    print('The jaccard similarity is: ', get_jaccard_similarity(word_vectors[0], word_vectors[1]))
+    print('The Euclidean distance is: ', get_euclidean_distance(word_vectors[0], word_vectors[1]))
+
+    # print(get_tf_idf(word_vectors))
+
+    end_time = time.time()
+    print('The time was spent: ', end_time - start_time)
+
+
+
+
