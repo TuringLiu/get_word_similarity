@@ -1,0 +1,108 @@
+import requests
+from bs4 import BeautifulSoup
+from selenium import webdriver
+import json
+import time
+import threading
+'''自动爬取最新的新闻'''
+
+net_url = 'https://www.6tennis.com/index'
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36"}
+
+# 将json格式中的unicode编码转换为中文
+def unicode_to_utf8(str):
+    return str.encode('utf-8').decode('utf-8')
+
+def get_static_html(url):
+    return requests.get(url, headers=headers).content.decode('utf-8')
+
+def get_dynamic_html(url):
+    browser = webdriver.Chrome()
+    browser.get(url)
+    content = browser.page_source
+    # print(browser.page_source)
+    browser.close()
+    return content
+
+def get_soup(url):
+    html_content = get_dynamic_html(url)
+    soup = BeautifulSoup(html_content, 'html.parser')
+    return soup
+
+# 将得到json格式数据解析，并使用json格式存储解析后的数据到file_name文件中
+def get_json_to_save(data_json, filename):
+    news_json = data_json['data']['infoDetails']
+    news_content = news_json['content']
+    # 构造soup，解析conten中的内容
+    soup = BeautifulSoup(news_content, 'html.parser')
+    news_content = ''
+    news_picture = []
+
+    for img in soup.find_all('img'):
+        news_picture.append(img['src'])
+    for s in soup.stripped_strings:
+        news_content += s
+
+    # 构造json格式数据
+    news_to_save = dict()
+    news_to_save['title'] = news_json['title']
+    news_to_save['time'] = news_json['created_at']
+    news_to_save['author'] = news_json['source']
+    news_to_save['content'] = news_content
+    news_to_save['picture'] = news_picture
+    # # 将文件存储到txt文件中，并且使用utf-8编码，但会出现乱码
+    # with open(filename, 'a', encoding='utf-8') as file:
+    #     json.dump(news_to_save, file, ensure_ascii=False)
+
+    # 将文件存储到txt文件中，不会出现乱码
+    with open(filename, 'a') as file:
+        json.dump(news_to_save, file)
+
+def get_news_version1():
+    news_6tennis = 'https://www.6tennis.com/newsDetail?id='
+    for i in range(112, 10000):
+        news_net = news_6tennis + str(i)
+        soup = get_soup(news_net)
+        # 获取文章标题
+        title_tag = soup.find('div', class_='articalTitle')
+        # 获取文章发布时间
+        time_tag = soup.find('div', class_='time l')
+        # 获取文章发布来源
+        from_tag = soup.find('div', class_='from l')
+        # 获取文章
+        content_tag = soup.find('div', class_='articalText')
+        for child in content_tag.children:
+            if(child.name == 'img'):
+                print(child['src'])
+            else:
+                if child.string is not None:
+                    print(child.string)
+
+        # print(soup.prettify())
+        # print(soup.name)
+        # print(title_tag.string)
+        # print(time_tag.string)
+        # print(from_tag.contents[1].string)
+        # print(target_tag)
+
+
+
+def get_news_version2():
+    url = "https://www.6tennis.com/api/getNewsInfo"
+    for i in range(112, 215):
+        data = {"art_id": str(i)}
+        # data = "art_id=112" # 会出现缺失参数问题
+        response = requests.post(url, data=data)
+        data_json = response.json()
+        if data_json['code'] != '200':
+            continue
+        # 多线程
+        threading.Thread(target=get_json_to_save, args=(data_json, 'news.json')).start()
+
+        print('news id is: ', i)
+        time.sleep(1)
+
+
+if __name__ == '__main__':
+    get_news_version1()
+    # get_dynamic_html("http://www.baidu.com")
