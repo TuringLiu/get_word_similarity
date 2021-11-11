@@ -1,0 +1,84 @@
+import time
+import socket
+import requests
+from bs4 import BeautifulSoup
+from selenium import webdriver
+import urllib
+import json
+
+path = r"https://pic.sogou.com/"
+
+def getSogouImag(category, length, path):
+    n = length
+    cate = category
+    imgs = requests.get('http://pic.sogou.com/pics/channel/getAllRecomPicByTag.jsp?category='+cate+'&tag=%E5%85%A8%E9%83%A8&start=0&len='+str(n))
+    jd = json.loads(imgs.text)
+    jd = jd['all_items']
+    imgs_url = []
+    for j in jd:
+        imgs_url.append(j['bthumbUrl'])
+    m = 0
+    for img_url in imgs_url:
+            print('***** '+str(m)+'.jpg *****'+'   Downloading...')
+            urllib.request.urlretrieve(img_url, path+str(m)+'.jpg')
+            m = m + 1
+    print('Download complete!')
+
+def get_sogou_search_image(file_path):
+    index_word = ['杨幂', '壁纸', '国家', '人物','风景', 'acg', '北京大学', '成都', '四川', '澳大利亚', '西班牙', '计算机', '比特币', '星空', '动漫', '美女', '王家卫', '胡歌', '马思唯', '王菲']
+    sum = 0
+    for i in range(len(index_word)):
+        path = "https://pic.sogou.com/napi/pc/simPic?query=" + index_word[i] + "&simdataStr=true_"
+        for j in range(1, 300):
+            json_path = path + str(j)
+            print(json_path)
+            response = requests.get(json_path)
+            # print(response.text)
+            pics = response.json()['data']['items']
+            # print(pics)
+            for pic in pics:
+                # print(pic)
+                url = pic['picUrl']
+                print(url)
+                file_name = file_path + str(sum) + '.jpg'
+
+                # download_pic(url, file_name)
+
+                try:
+                    response = requests.get(url, timeout=5)
+                    print(response)
+                    pic_content = response.content
+                    with open(file_name, 'wb') as f:
+                        f.write(pic_content)
+                except OSError:
+                    continue
+
+                sum += 1
+                # time.sleep(1)
+
+def download_pic(url, file_name):
+    socket.setdefaulttimeout(10)
+    try:
+        urllib.request.urlretrieve(url, file_name)
+    # # 如果超时
+    # except socket.timeout:
+    #     count = 1
+    #     while count <= 5:
+    #         try:
+    #             urllib.request.urlretrieve(url, file_name)
+    #             break
+    #         except socket.timeout:
+    #             err_info = 'Reloading for %d time' % count if count == 1 else 'Reloading for %d times' % count
+    #             print(err_info)
+    #             count += 1
+    #     if count > 5:
+    #         print("download job failed!")
+
+    except OSError:
+        pass
+
+
+
+if __name__ == '__main__':
+    # getSogouImag('壁纸', 2000, )
+    get_sogou_search_image('D:\开源项目\mypic\\')
